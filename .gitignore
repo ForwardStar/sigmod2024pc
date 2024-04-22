@@ -6,6 +6,7 @@ test
 baseline
 sampling
 comparator
+hnsw
 submission.rpz
 .reprozip-trace
 Public-4M-queries.bin
