@@ -15,67 +15,88 @@ using std::endl;
 using std::string;
 using std::vector;
 
+vector<vector<float>> nodes;
+vector<vector<uint32_t>> edges;
 
-std::vector<int> cut;
-vector <vector<float>> nodes;
-
-
-bool cmp(const std::vector<float>& i, const std::vector<float>& j) {
-  return i[0] < j[0];
-}
-
-
-bool cmp1(const std::vector<float>& i, const std::vector<float>& j) {
-  return i[1] < j[1];
-}
-
-
-int binsearch(int v) {
-  int l = 0;
-  int r = cut.size() - 2;
-  while (l < r) {
-    int mid = l + r >> 1;
-    if (int(nodes[cut[mid]][0]) < v) {
-      l = mid + 1;
-    }
-    else {
-      r = mid;
-    }
-  }
-  return l;
-}
-
-
-int binsearch(int li, int ri, float v) {
-  int l = li;
-  int r = ri;
-  if (nodes[r][1] < v) {
-    return -1;
-  }
-  while (l < r) {
-    int mid = l + r >> 1;
-    if (nodes[mid][1] < v) {
-      l = mid + 1;
-    }
-    else {
-      r = mid;
-    }
-  }
-  return l;
-}
-
+const int M = 32;
+vector<bool> visited;
+vector<uint32_t> visited_list;
 
 float compare_with_id(const std::vector<float>& a, const std::vector<float>& b) {
   float sum = 0.0;
   // Skip the first 2 dimensions
   #pragma omp parallel for
-  for (size_t i = 2; i < a.size() - 1; ++i) {
+  for (size_t i = 2; i < a.size(); ++i) {
     float diff = a[i] - b[i];
     sum += diff * diff;
   }
   return sum;
 }
 
+void ann_search(vector<float>& q, int s, int k, vector<uint32_t>& ann) {
+  visited_list.clear();
+  visited[s] = true;
+  visited_list.push_back(s);
+  auto cmp1 = [](std::pair<uint32_t, float> i, std::pair<uint32_t, float> j) {
+      return i.second > j.second;
+  };
+  auto cmp2 = [](std::pair<uint32_t, float> i, std::pair<uint32_t, float> j) {
+      return i.second < j.second;
+  };
+  std::priority_queue<std::pair<uint32_t, float>, std::vector<std::pair<uint32_t, float>>, decltype(cmp1)> Q1(cmp1);
+  std::priority_queue<std::pair<uint32_t, float>, std::vector<std::pair<uint32_t, float>>, decltype(cmp2)> Q2(cmp2);
+  Q1.push(std::make_pair(s, compare_with_id(nodes[s], q)));
+  Q2.push(std::make_pair(s, compare_with_id(nodes[s], q)));
+  while (!Q1.empty()) {
+    int v = Q1.top().first, u = Q2.top().first;
+    if (Q1.top().second > Q2.top().second) {
+      break;
+    }
+    Q1.pop();
+    for (auto w : edges[v]) {
+      if (!visited[w]) {
+        visited[w] = true;
+        visited_list.push_back(w);
+        float d1 = compare_with_id(q, nodes[w]), d2 = compare_with_id(q, nodes[u]);
+        if (Q2.size() < k || d1 < d2) {
+          Q1.push(std::make_pair(w, d1));
+          Q2.push(std::make_pair(w, d1));
+          if (Q2.size() > k) {
+            Q2.pop();
+          }
+        }
+      }
+    }
+  }
+  for (auto u : visited_list) {
+    visited[u] = false;
+  }
+  while (!Q2.empty()) {
+    ann.push_back(Q2.top().first);
+    Q2.pop();
+  }
+}
+
+vector<uint32_t> prune(int now, vector<uint32_t>& ann) {
+  vector<uint32_t> neighbours;
+  for (int i = ann.size() - 1; i >= 0; i--) {
+    int v = ann[i];
+    bool not_dominated = true;
+    for (int u : neighbours) {
+      if (compare_with_id(nodes[now], nodes[u]) < compare_with_id(nodes[now], nodes[v]) && compare_with_id(nodes[u], nodes[v]) < compare_with_id(nodes[now], nodes[v])) {
+        not_dominated = true;
+        break;
+      }
+    }
+    if (not_dominated) {
+      neighbours.push_back(v);
+    }
+    if (neighbours.size() >= M) {
+      break;
+    }
+  }
+  return neighbours;
+}
 
 int main(int argc, char **argv) {
   string source_path = "dummy-data.bin";
@@ -103,34 +124,34 @@ int main(int argc, char **argv) {
   uint32_t n = nodes.size();
   uint32_t d = nodes[0].size();
   uint32_t nq = queries.size();
-  uint32_t sn = 950;
 
   cout<<"# data points:  " << n<<"\n";
   cout<<"# data point dim:  " << d<<"\n";
   cout<<"# queries:      " << nq<<"\n";
-  cout<<"Sample size:   " << sn<<"\n";
 
   /** A basic method to compute the KNN results using sampling  **/
   const int K = 100;    // To find 100-NN
   int mismatched_nums = 0;
 
+  edges.resize(nodes.size());
+  visited.resize(nodes.size());
+  cout << "Constructing the index..." << endl;
   for (int i = 0; i < nodes.size(); i++) {
-    nodes[i].push_back(i);
-  }
-  std::sort(nodes.begin(), nodes.end(), cmp);
-  int last = 0;
-  cut.push_back(0);
-  for (int i = 1; i < nodes.size(); i++) {
-    if (nodes[i][0] != nodes[i - 1][0]) {
-      std::sort(nodes.begin() + last, nodes.begin() + i, cmp1);
-      last = i;
-      cut.push_back(last);
+    if ((i + 1) % 100000 == 0) {
+      cout << (i + 1) << endl;
+    }
+    vector<uint32_t> ann;
+    ann_search(nodes[i], 0, K, ann);
+    edges[i] = prune(i, ann);
+    for (int u : edges[i]) {
+      edges[u].push_back(i);
+      if (edges[u].size() > M) {
+        edges[u] = prune(u, edges[u]);
+      }
     }
   }
-  std::sort(nodes.begin() + last, nodes.end(), cmp1);
-  cut.push_back(nodes.size());
-  knn_results.resize(nq);
 
+  cout << "Solving queries..." << endl;
   #pragma omp parallel for
   for(int i = 0; i < nq; i++){
     if ((i + 1) % 10000 == 0) {
@@ -149,109 +170,8 @@ int main(int argc, char **argv) {
       query_vec.push_back(queries[i][j]);
 
     vector<uint32_t> knn; // candidate knn
-
-    // Handling 4 types of queries
-    if(query_type == 0){  // only ANN
-        for(uint32_t j = 0; j < sn; j++){
-            knn.push_back(j);
-        }
-    }
-    else if(query_type == 1){ // equal + ANN
-        int idx = binsearch(v);
-        for(uint32_t j = cut[idx]; j < cut[idx + 1]; j++){
-            if(nodes[j][0] == v){
-                knn.push_back(j);
-            }
-            else {
-              break;
-            }
-            if (knn.size() >= sn) {
-              break;
-            }
-        }
-    }
-    else if(query_type == 2){ // range + ANN
-        for (int i = 0; i < cut.size() - 1; i++) {
-          int li = cut[i], ri = cut[i + 1] - 1;
-          int idx = binsearch(li, ri, l);
-          if (idx == -1) {
-            continue;
-          }
-          else {
-            for (int j = idx; j <= ri; j++) {
-              if (nodes[j][1] >= l && nodes[j][1] <= r) {
-                knn.push_back(j);
-              }
-              else {
-                break;
-              }
-              if (knn.size() >= sn) {
-                break;
-              }
-            }
-          }
-          if (knn.size() >= sn) {
-            break;
-          }
-        }
-    }
-    else if(query_type == 3){ // equal + range + ANN
-      int idx = binsearch(v);
-      int li = cut[idx], ri = cut[idx + 1] - 1;
-      int idx1 = binsearch(li, ri, l);
-      if (idx1 != -1) {
-        for (int j = idx1; j <= ri; j++) {
-          if (nodes[j][1] >= l && nodes[j][1] <= r) {
-            knn.push_back(j);
-          }
-          else {
-            break;
-          }
-          if (knn.size() >= sn) {
-            break;
-          }
-        }
-      }
-    }
-
-    // If the number of knn in the sampled data is less than K, then fill the rest with the last few nodes
-    if(knn.size() < K){
-      // std::cout << knn.size() << std::endl;
-      uint32_t s = 1;
-      mismatched_nums += K - knn.size();
-      while(knn.size() < K) {
-        knn.push_back(n);
-        s = s + 1;
-      }
-    }
-
-    // build another vec to store the distance between knn[i] and query_vec
-    auto cmp2 = [](std::pair<uint32_t, float> i, std::pair<uint32_t, float> j) {
-        return i.second < j.second;
-    };
-    std::priority_queue<std::pair<uint32_t, float>, std::vector<std::pair<int, float>>, decltype(cmp2)> dists(cmp2);
-    for(uint32_t j = 0; j < knn.size(); j++) {
-      if (knn[j] == n) {
-        dists.push(std::make_pair(n, 2147483647));
-      }
-      else {
-        dists.push(std::make_pair(knn[j], compare_with_id(nodes[knn[j]], query_vec)));
-      }
-      if (dists.size() > K) {
-        dists.pop();
-      }
-    }
-
-    while (!dists.empty()) {
-      auto u = dists.top();
-      if (u.first == n) {
-        knn_results[i].push_back(n);
-      }
-      else {
-        knn_results[i].push_back(uint32_t(nodes[u.first][nodes[u.first].size() - 1]));
-      }
-      dists.pop();
-    }
+    ann_search(query_vec, 1, K, knn);
+    knn_results.push_back(knn);
   }
 
   std::cout << "Mismatched nums: " << mismatched_nums << std::endl;

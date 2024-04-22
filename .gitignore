@@ -2,8 +2,9 @@
 contest-queries-release-1m.bin
 contest-data-release-1m.bin
 output*.bin
-test*
+test
 baseline
+sampling
 comparator
 submission.rpz
 .reprozip-trace
