@@ -5,3 +5,5 @@ output.bin
 test*
 submission.rpz
 .reprozip-trace
+Public-4M-queries.bin
+contest-data-release-10m.bin
