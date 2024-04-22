@@ -38,7 +38,7 @@ int main(int argc, char **argv) {
   }
 
   uint32_t num_data_dimensions = 102;
-  float sample_proportion = 0.001;
+  float sample_proportion = 1;
 
   // Read data points
   vector <vector<float>> nodes;
@@ -62,6 +62,7 @@ int main(int argc, char **argv) {
 
   /** A basic method to compute the KNN results using sampling  **/
   const int K = 100;    // To find 100-NN
+  int mismatched_nums = 0;
 
   for(uint i = 0; i < nq; i++){
     uint32_t query_type = queries[i][0];
@@ -106,6 +107,7 @@ int main(int argc, char **argv) {
 
     // If the number of knn in the sampled data is less than K, then fill the rest with the last few nodes
     if(knn.size() < K){
+      mismatched_nums += K - knn.size();
       uint32_t s = 1;
       while(knn.size() < K) {
         knn.push_back(n - s);
@@ -133,6 +135,8 @@ int main(int argc, char **argv) {
     }
     knn_results.push_back(knn_sorted);
   }
+
+  std::cout << "Mismatched nums: " << mismatched_nums << std::endl;
 
   // save the results
   SaveKNN(knn_results, knn_save_path);

@@ -68,7 +68,8 @@ int binsearch(int li, int ri, float v) {
 float compare_with_id(const std::vector<float>& a, const std::vector<float>& b) {
   float sum = 0.0;
   // Skip the first 2 dimensions
-  for (size_t i = 2; i < a.size(); ++i) {
+  #pragma omp parallel for
+  for (size_t i = 2; i < a.size() - 1; ++i) {
     float diff = a[i] - b[i];
     sum += diff * diff;
   }
@@ -111,6 +112,7 @@ int main(int argc, char **argv) {
 
   /** A basic method to compute the KNN results using sampling  **/
   const int K = 100;    // To find 100-NN
+  int mismatched_nums = 0;
 
   for (int i = 0; i < nodes.size(); i++) {
     nodes[i].push_back(i);
@@ -216,8 +218,9 @@ int main(int argc, char **argv) {
     if(knn.size() < K){
       // std::cout << knn.size() << std::endl;
       uint32_t s = 1;
+      mismatched_nums += K - knn.size();
       while(knn.size() < K) {
-        knn.push_back(n - s);
+        knn.push_back(nodes[n - s][nodes[n - s].size() - 1]);
         s = s + 1;
       }
     }
@@ -240,6 +243,8 @@ int main(int argc, char **argv) {
       dists.pop();
     }
   }
+
+  std::cout << "Mismatched nums: " << mismatched_nums << std::endl;
 
   // save the results
   SaveKNN(knn_results, knn_save_path);
