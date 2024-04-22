@@ -60,3 +60,26 @@ void ReadBin(const std::string &file_path,
   ifs.close();
   std::cout << "Finish Reading Data" << endl;
 }
+
+void ReadBinResults(const std::string &file_path,
+             const int num_dimensions,
+             std::vector<std::vector<uint32_t>> &data) {
+  std::cout << "Reading Data: " << file_path << std::endl;
+  std::ifstream ifs;
+  ifs.open(file_path, std::ios::binary);
+  assert(ifs.is_open());
+  uint32_t N = 10000;
+  data.resize(N);
+  std::cout << "# of points: " << N << std::endl;
+  std::vector<uint32_t> buff(num_dimensions);
+  int counter = 0;
+  while (ifs.read((char *)buff.data(), num_dimensions * sizeof(uint32_t))) {
+    std::vector<uint32_t> row(num_dimensions);
+    for (int d = 0; d < num_dimensions; d++) {
+      row[d] = static_cast<float>(buff[d]);
+    }
+    data[counter++] = std::move(row);
+  }
+  ifs.close();
+  std::cout << "Finish Reading Data" << endl;
+}

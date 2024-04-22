@@ -38,7 +38,7 @@ int main(int argc, char **argv) {
   }
 
   uint32_t num_data_dimensions = 102;
-  float sample_proportion = 0.00001;
+  float sample_proportion = 0.001;
 
   // Read data points
   vector <vector<float>> nodes;
