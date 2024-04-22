@@ -102,7 +102,7 @@ int main(int argc, char **argv) {
   uint32_t n = nodes.size();
   uint32_t d = nodes[0].size();
   uint32_t nq = queries.size();
-  uint32_t sn = 900;
+  uint32_t sn = 1000;
 
   cout<<"# data points:  " << n<<"\n";
   cout<<"# data point dim:  " << d<<"\n";
@@ -127,6 +127,7 @@ int main(int argc, char **argv) {
   }
   std::sort(nodes.begin() + last, nodes.end(), cmp1);
   cut.push_back(nodes.size());
+  knn_results.resize(nq);
 
   #pragma omp parallel for
   for(int i = 0; i < nq; i++){
@@ -222,24 +223,22 @@ int main(int argc, char **argv) {
     }
 
     // build another vec to store the distance between knn[i] and query_vec
-    vector<float> dists;
-    dists.resize(knn.size());
-    for(uint32_t j = 0; j < knn.size(); j++)
-      dists[j] = compare_with_id(nodes[knn[j]], query_vec);
-
-    vector<uint32_t > ids;
-    ids.resize(knn.size());
-    std::iota(ids.begin(), ids.end(), 0);
-    // sort ids based on dists
-    std::sort(ids.begin(), ids.end(), [&](uint32_t a, uint32_t b){
-        return dists[a] < dists[b];
-    });
-    vector<uint32_t> knn_sorted;
-    knn_sorted.resize(K);
-    for(uint32_t j = 0; j < K; j++){
-      knn_sorted[j] = nodes[knn[ids[j]]][nodes[knn[ids[j]]].size() - 1];
+    auto cmp2 = [](std::pair<uint32_t, float> i, std::pair<uint32_t, float> j) {
+        return i.second < j.second;
+    };
+    std::priority_queue<std::pair<uint32_t, float>, std::vector<std::pair<int, float>>, decltype(cmp2)> dists(cmp2);
+    for(uint32_t j = 0; j < knn.size(); j++) {
+      dists.push(std::make_pair(knn[j], compare_with_id(nodes[knn[j]], query_vec)));
+      if (dists.size() > K) {
+        dists.pop();
+      }
     }
-    knn_results.push_back(knn_sorted);
+
+    while (!dists.empty()) {
+      auto u = dists.top();
+      knn_results[i].push_back(uint32_t(nodes[u.first][nodes[u.first].size() - 1]));
+      dists.pop();
+    }
   }
 
   // save the results
