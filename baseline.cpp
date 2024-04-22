@@ -33,13 +33,12 @@ int main(int argc, char **argv) {
   string knn_save_path = "output.bin";
 
   // Also accept other path for source data
-  if (argc > 2) {
+  if (argc > 1) {
     source_path = string(argv[1]);
-    query_path = string(argv[2]);
   }
 
   uint32_t num_data_dimensions = 102;
-  float sample_proportion = 0.1;
+  float sample_proportion = 0.00001;
 
   // Read data points
   vector <vector<float>> nodes;
@@ -64,7 +63,7 @@ int main(int argc, char **argv) {
   /** A basic method to compute the KNN results using sampling  **/
   const int K = 100;    // To find 100-NN
 
-  for(int i = 0; i < nq; i++){
+  for(uint i = 0; i < nq; i++){
     uint32_t query_type = queries[i][0];
     int32_t v = queries[i][1];
     float l = queries[i][2];
@@ -74,7 +73,7 @@ int main(int argc, char **argv) {
     // first push_back 2 zeros for aligning with dataset
     query_vec.push_back(0);
     query_vec.push_back(0);
-    for(int j = 4; j < queries[i].size(); j++)
+    for(uint j = 4; j < queries[i].size(); j++)
       query_vec.push_back(queries[i][j]);
 
     vector<uint32_t> knn; // candidate knn
