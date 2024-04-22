@@ -1,0 +1,7 @@
+.vscode
+contest-queries-release-1m.bin
+contest-data-release-1m.bin
+output.bin
+test*
+submission.rpz
+.reprozip-trace

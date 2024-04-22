@@ -33,12 +33,13 @@ int main(int argc, char **argv) {
   string knn_save_path = "output.bin";
 
   // Also accept other path for source data
-  if (argc > 1) {
+  if (argc > 2) {
     source_path = string(argv[1]);
+    query_path = string(argv[2]);
   }
 
   uint32_t num_data_dimensions = 102;
-  float sample_proportion = 0.001;
+  float sample_proportion = 0.1;
 
   // Read data points
   vector <vector<float>> nodes;
