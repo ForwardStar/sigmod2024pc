@@ -102,11 +102,12 @@ int main(int argc, char **argv) {
   uint32_t n = nodes.size();
   uint32_t d = nodes[0].size();
   uint32_t nq = queries.size();
-  uint32_t sn = 1000;
+  uint32_t sn = 900;
 
   cout<<"# data points:  " << n<<"\n";
   cout<<"# data point dim:  " << d<<"\n";
   cout<<"# queries:      " << nq<<"\n";
+  cout<<"Sample size:   " << sn<<"\n";
 
   /** A basic method to compute the KNN results using sampling  **/
   const int K = 100;    // To find 100-NN
