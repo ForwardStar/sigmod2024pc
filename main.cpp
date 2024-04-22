@@ -103,7 +103,7 @@ int main(int argc, char **argv) {
   uint32_t n = nodes.size();
   uint32_t d = nodes[0].size();
   uint32_t nq = queries.size();
-  uint32_t sn = 1000;
+  uint32_t sn = 950;
 
   cout<<"# data points:  " << n<<"\n";
   cout<<"# data point dim:  " << d<<"\n";
@@ -220,7 +220,7 @@ int main(int argc, char **argv) {
       uint32_t s = 1;
       mismatched_nums += K - knn.size();
       while(knn.size() < K) {
-        knn.push_back(nodes[n - s][nodes[n - s].size() - 1]);
+        knn.push_back(n);
         s = s + 1;
       }
     }
@@ -231,7 +231,12 @@ int main(int argc, char **argv) {
     };
     std::priority_queue<std::pair<uint32_t, float>, std::vector<std::pair<int, float>>, decltype(cmp2)> dists(cmp2);
     for(uint32_t j = 0; j < knn.size(); j++) {
-      dists.push(std::make_pair(knn[j], compare_with_id(nodes[knn[j]], query_vec)));
+      if (knn[j] == n) {
+        dists.push(std::make_pair(n, 2147483647));
+      }
+      else {
+        dists.push(std::make_pair(knn[j], compare_with_id(nodes[knn[j]], query_vec)));
+      }
       if (dists.size() > K) {
         dists.pop();
       }
@@ -239,7 +244,12 @@ int main(int argc, char **argv) {
 
     while (!dists.empty()) {
       auto u = dists.top();
-      knn_results[i].push_back(uint32_t(nodes[u.first][nodes[u.first].size() - 1]));
+      if (u.first == n) {
+        knn_results[i].push_back(n);
+      }
+      else {
+        knn_results[i].push_back(uint32_t(nodes[u.first][nodes[u.first].size() - 1]));
+      }
       dists.pop();
     }
   }

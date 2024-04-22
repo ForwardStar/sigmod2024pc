@@ -29,8 +29,13 @@ int main(int argc, char **argv) {
   float avg_recall = 0;
   for (int i = 0; i < n; i++) {
     float recall = 0;
+    int tot = 100;
     std::unordered_set<int> occurred_ids;
     for (int j = 0; j < num_data_dimensions; j++) {
+        if (output_std[i][j] == 10000) {
+            tot--;
+            continue;
+        }
         occurred_ids.insert(output_std[i][j]);
     }
     for (int j = 0; j < num_data_dimensions; j++) {
@@ -38,7 +43,12 @@ int main(int argc, char **argv) {
             recall = recall + 1;
         }
     }
-    avg_recall += recall / num_data_dimensions;
+    if (tot == 0) {
+        avg_recall += 1;
+    }
+    else {
+        avg_recall += recall / tot;
+    }
   }
   avg_recall /= n;
   std::cout << "Average recall: " << avg_recall << std::endl;

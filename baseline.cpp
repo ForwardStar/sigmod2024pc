@@ -110,7 +110,7 @@ int main(int argc, char **argv) {
       mismatched_nums += K - knn.size();
       uint32_t s = 1;
       while(knn.size() < K) {
-        knn.push_back(n - s);
+        knn.push_back(n);
         s = s + 1;
       }
     }
@@ -118,8 +118,14 @@ int main(int argc, char **argv) {
     // build another vec to store the distance between knn[i] and query_vec
     vector<float> dists;
     dists.resize(knn.size());
-    for(uint32_t j = 0; j < knn.size(); j++)
-      dists[j] = compare_with_id(nodes[knn[j]], query_vec);
+    for(uint32_t j = 0; j < knn.size(); j++) {
+      if (knn[j] != n) {
+        dists[j] = compare_with_id(nodes[knn[j]], query_vec);
+      }
+      else {
+        dists[j] = 2147483647;
+      }
+    }
 
     vector<uint32_t > ids;
     ids.resize(knn.size());
