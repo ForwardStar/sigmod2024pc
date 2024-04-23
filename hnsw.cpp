@@ -21,7 +21,7 @@ using std::vector;
 vector<vector<float>> nodes;
 vector<vector<uint32_t>> edges;
 
-const int M = 5;
+const int M = 32;
 vector<vector<bool>> visited;
 
 float compare_with_id(const std::vector<float>& a, const std::vector<float>& b) {
@@ -145,7 +145,7 @@ int main(int argc, char **argv) {
   uint32_t sn = 10;
   uint32_t block_num = 20;
   uint32_t block_size = n / block_num;
-  uint32_t block_k = 20;
+  uint32_t block_k = 10;
 
   cout<<"# data points:  " << n<<"\n";
   cout<<"# data point dim:  " << d<<"\n";
