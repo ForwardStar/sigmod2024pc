@@ -47,7 +47,7 @@ int main(int argc, char **argv) {
         avg_recall += 1;
     }
     else {
-        avg_recall += recall / tot;
+        avg_recall += std::min((float)1.0, recall / tot);
     }
   }
   avg_recall /= n;

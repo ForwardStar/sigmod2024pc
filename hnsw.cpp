@@ -21,7 +21,7 @@ using std::vector;
 vector<vector<float>> nodes;
 vector<vector<uint32_t>> edges;
 
-const int M = 32;
+const int M = 20;
 vector<vector<bool>> visited;
 
 float compare_with_id(const std::vector<float>& a, const std::vector<float>& b) {
@@ -35,7 +35,7 @@ float compare_with_id(const std::vector<float>& a, const std::vector<float>& b) 
   return sum;
 }
 
-void ann_search(vector<float>& q, int s, int k, vector<uint32_t>& ann, int32_t vc=-1, float ts=-1, float te=-1) {
+void ann_search(vector<float>& q, int s, int k, vector<uint32_t>& ann, int32_t vc=-1, float ts=-1, float te=-1, int limit=1e7) {
   int tid = omp_get_thread_num();
   vector<uint32_t> visited_list;
   visited[tid][s] = true;
@@ -50,9 +50,11 @@ void ann_search(vector<float>& q, int s, int k, vector<uint32_t>& ann, int32_t v
   std::priority_queue<std::pair<uint32_t, float>, std::vector<std::pair<uint32_t, float>>, decltype(cmp2)> Q2(cmp2);
   Q1.push(std::make_pair(s, compare_with_id(nodes[s], q)));
   Q2.push(std::make_pair(s, compare_with_id(nodes[s], q)));
+  int cur = 0;
   while (!Q1.empty()) {
+    cur++;
     int v = Q1.top().first, u = Q2.top().first;
-    if (Q1.top().second > Q2.top().second) {
+    if (Q1.top().second > Q2.top().second || cur > limit) {
       break;
     }
     Q1.pop();
@@ -146,6 +148,7 @@ int main(int argc, char **argv) {
   uint32_t block_num = 20;
   uint32_t block_size = n / block_num;
   uint32_t block_k = 10;
+  uint32_t limit = 150;
 
   cout<<"# data points:  " << n<<"\n";
   cout<<"# data point dim:  " << d<<"\n";
@@ -153,6 +156,7 @@ int main(int argc, char **argv) {
   cout<<"# blocks:    " << block_num<<"\n";
   cout<<"Block size:    " << block_size<<"\n";
   cout<<"Block K:    " << block_k<<"\n";
+  cout<<"Early stop limit:    " << limit<<"\n";
 
   /** A basic method to compute the KNN results using sampling  **/
   const int K = 100;    // To find 100-NN
@@ -183,8 +187,13 @@ int main(int argc, char **argv) {
   }
 
   cout << "Solving queries..." << endl;
+  int cur = 0;
   #pragma omp parallel for
   for(int i = 0; i < nq; i++){
+    cur++;
+    if (cur % 100000 == 0) {
+      cout << cur << endl;
+    }
     uint32_t query_type = queries[i][0];
     int32_t v = queries[i][1];
     float l = queries[i][2];
@@ -198,7 +207,7 @@ int main(int argc, char **argv) {
       query_vec.push_back(queries[i][j]);
 
     for (int j = 0; j < block_num; j++) {
-      ann_search(query_vec, j * block_size, block_k, knn_results[i], v, l, r);
+      ann_search(query_vec, j * block_size, block_k, knn_results[i], v, l, r, limit);
     }
   }
 
@@ -206,7 +215,7 @@ int main(int argc, char **argv) {
   #pragma omp parallel for
   for (int i = 0; i < nq; i++) {
     while (knn_results[i].size() < K) {
-      knn_results[i].push_back(n);
+      knn_results[i].push_back(knn_results[i][0]);
     } 
     vector<float> query_vec;
 
