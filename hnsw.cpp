@@ -21,7 +21,7 @@ using std::vector;
 vector<vector<float>> nodes;
 vector<vector<uint32_t>> edges;
 
-const int M = 10;
+const int M = 5;
 vector<vector<bool>> visited;
 
 float compare_with_id(const std::vector<float>& a, const std::vector<float>& b) {
@@ -52,7 +52,7 @@ void ann_search(vector<float>& q, int s, int k, vector<uint32_t>& ann, int32_t v
   Q2.push(std::make_pair(s, compare_with_id(nodes[s], q)));
   while (!Q1.empty()) {
     int v = Q1.top().first, u = Q2.top().first;
-    if (Q1.top().second > Q2.top().second || (visited.size() >= 2 * k && ann.size() >= k)) {
+    if (Q1.top().second > Q2.top().second) {
       break;
     }
     Q1.pop();
@@ -143,10 +143,16 @@ int main(int argc, char **argv) {
   uint32_t d = nodes[0].size();
   uint32_t nq = queries.size();
   uint32_t sn = 10;
+  uint32_t block_num = 20;
+  uint32_t block_size = n / block_num;
+  uint32_t block_k = 20;
 
   cout<<"# data points:  " << n<<"\n";
   cout<<"# data point dim:  " << d<<"\n";
   cout<<"# queries:      " << nq<<"\n";
+  cout<<"# blocks:    " << block_num<<"\n";
+  cout<<"Block size:    " << block_size<<"\n";
+  cout<<"Block K:    " << block_k<<"\n";
 
   /** A basic method to compute the KNN results using sampling  **/
   const int K = 100;    // To find 100-NN
@@ -161,18 +167,17 @@ int main(int argc, char **argv) {
   cout << "Number of threads: " << get_num_threads() << endl;
 
   cout << "Constructing the index..." << endl;
-  for (int i = 0; i < std::min(1000000, int(nodes.size())); i++) {
-    // cout << i << endl;
-    if ((i + 1) % 100000 == 0) {
-      cout << (i + 1) << endl;
-    }
-    vector<uint32_t> ann;
-    ann_search(nodes[i], 0, K, ann);
-    edges[i] = prune(i, ann);
-    for (int u : edges[i]) {
-      edges[u].push_back(i);
-      if (edges[u].size() > M) {
-        edges[u] = prune(u, edges[u]);
+  #pragma omp parallel for
+  for (int i = 0; i < block_num; i++) {
+    for (int k = i * block_size; k < (i + 1) * block_size; k++) {
+      vector<uint32_t> ann;
+      ann_search(nodes[k], i * block_size, block_k, ann);
+      edges[k] = prune(k, ann);
+      for (int u : edges[k]) {
+        edges[u].push_back(k);
+        if (edges[u].size() > M) {
+          edges[u] = prune(u, edges[u]);
+        }
       }
     }
   }
@@ -192,10 +197,49 @@ int main(int argc, char **argv) {
     for(int j = 4; j < queries[i].size(); j++)
       query_vec.push_back(queries[i][j]);
 
-    ann_search(query_vec, 1, K, knn_results[i], v, l, r);
-    // while (knn_results[i].size() < K) {
-    //   knn_results[i].push_back(rand() % n);
-    // }
+    for (int j = 0; j < block_num; j++) {
+      ann_search(query_vec, j * block_size, block_k, knn_results[i], v, l, r);
+    }
+  }
+
+  cout << "Normalizing results..." << endl;
+  #pragma omp parallel for
+  for (int i = 0; i < nq; i++) {
+    while (knn_results[i].size() < K) {
+      knn_results[i].push_back(n);
+    } 
+    vector<float> query_vec;
+
+    // first push_back 2 zeros for aligning with dataset
+    query_vec.push_back(0);
+    query_vec.push_back(0);
+    for(int j = 4; j < queries[i].size(); j++)
+      query_vec.push_back(queries[i][j]);
+
+    vector<float> dists;
+    dists.resize(knn_results[i].size());
+    for(uint32_t j = 0; j < knn_results[i].size(); j++) {
+      if (knn_results[i][j] != n) {
+        dists[j] = compare_with_id(nodes[knn_results[i][j]], query_vec);
+      }
+      else {
+        dists[j] = 2147483647;
+      }
+    }
+    vector<uint32_t > ids;
+    ids.resize(knn_results[i].size());
+    std::iota(ids.begin(), ids.end(), 0);
+    // sort ids based on dists
+    std::sort(ids.begin(), ids.end(), [&](uint32_t a, uint32_t b){
+        return dists[a] < dists[b];
+    });
+
+    vector<uint32_t> knn_sorted;
+    knn_sorted.resize(K);
+    for(uint32_t j = 0; j < K; j++){
+      knn_sorted[j] = knn_results[i][ids[j]];
+    }
+    knn_results[i] = knn_sorted;
   }
 
   std::cout << "Mismatched nums: " << mismatched_nums << std::endl;
