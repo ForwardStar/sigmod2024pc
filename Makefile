@@ -1,5 +1,5 @@
 CXX=g++
-CXXFLAGS=-I. -std=c++11 -O3
+CXXFLAGS=-I. -std=c++11 -O3 -fopenmp
 TARGET=test
 SRC=main.cpp
 SAMPLINGTARGET=sampling

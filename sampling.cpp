@@ -68,7 +68,7 @@ int binsearch(int li, int ri, float v) {
 float compare_with_id(const std::vector<float>& a, const std::vector<float>& b) {
   float sum = 0.0;
   // Skip the first 2 dimensions
-  #pragma omp parallel for
+  // #pragma omp parallel for
   for (size_t i = 2; i < a.size() - 1; ++i) {
     float diff = a[i] - b[i];
     sum += diff * diff;
@@ -103,7 +103,7 @@ int main(int argc, char **argv) {
   uint32_t n = nodes.size();
   uint32_t d = nodes[0].size();
   uint32_t nq = queries.size();
-  uint32_t sn = 950;
+  uint32_t sn = std::min(int(n), 15000);
 
   cout<<"# data points:  " << n<<"\n";
   cout<<"# data point dim:  " << d<<"\n";
@@ -133,9 +133,9 @@ int main(int argc, char **argv) {
 
   #pragma omp parallel for
   for(int i = 0; i < nq; i++){
-    if ((i + 1) % 10000 == 0) {
-      std::cout << i + 1 << std::endl;
-    }
+    // if ((i + 1) % 10000 == 0) {
+    //   std::cout << i + 1 << std::endl;
+    // }
     uint32_t query_type = queries[i][0];
     int32_t v = queries[i][1];
     float l = queries[i][2];

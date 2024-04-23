@@ -9,6 +9,8 @@
 #include <numeric>
 #include <queue>
 #include <omp.h>
+#include <ctime>
+#include <unordered_set>
 #include "io.h"
 
 using std::cout;
@@ -19,14 +21,13 @@ using std::vector;
 vector<vector<float>> nodes;
 vector<vector<uint32_t>> edges;
 
-const int M = 5;
-vector<bool> visited;
-vector<uint32_t> visited_list;
+const int M = 10;
+vector<vector<bool>> visited;
 
 float compare_with_id(const std::vector<float>& a, const std::vector<float>& b) {
   float sum = 0.0;
   // Skip the first 2 dimensions
-  #pragma omp parallel for
+  // #pragma omp parallel for reduction (+:sum)
   for (size_t i = 2; i < a.size(); ++i) {
     float diff = a[i] - b[i];
     sum += diff * diff;
@@ -34,9 +35,10 @@ float compare_with_id(const std::vector<float>& a, const std::vector<float>& b) 
   return sum;
 }
 
-void ann_search(vector<float>& q, int s, int k, vector<uint32_t>& ann) {
-  visited_list.clear();
-  visited[s] = true;
+void ann_search(vector<float>& q, int s, int k, vector<uint32_t>& ann, int32_t vc=-1, float ts=-1, float te=-1) {
+  int tid = omp_get_thread_num();
+  vector<uint32_t> visited_list;
+  visited[tid][s] = true;
   visited_list.push_back(s);
   auto cmp1 = [](std::pair<uint32_t, float> i, std::pair<uint32_t, float> j) {
       return i.second > j.second;
@@ -50,27 +52,31 @@ void ann_search(vector<float>& q, int s, int k, vector<uint32_t>& ann) {
   Q2.push(std::make_pair(s, compare_with_id(nodes[s], q)));
   while (!Q1.empty()) {
     int v = Q1.top().first, u = Q2.top().first;
-    if (Q1.top().second > Q2.top().second) {
+    if (Q1.top().second > Q2.top().second || (visited.size() >= 2 * k && ann.size() >= k)) {
       break;
     }
     Q1.pop();
     for (auto w : edges[v]) {
-      if (!visited[w]) {
-        visited[w] = true;
+      if (!visited[tid][w]) {
+        visited[tid][w] = true;
         visited_list.push_back(w);
         float d1 = compare_with_id(q, nodes[w]), d2 = compare_with_id(q, nodes[u]);
         if (Q2.size() < k || d1 < d2) {
           Q1.push(std::make_pair(w, d1));
-          Q2.push(std::make_pair(w, d1));
-          if (Q2.size() > k) {
-            Q2.pop();
+          if (vc == -1 || nodes[w][0] == vc) {
+            if (ts == -1 || te == -1 || (nodes[w][1] >= ts && nodes[w][1] <= te)) {
+              Q2.push(std::make_pair(w, d1));
+              if (Q2.size() > k) {
+                Q2.pop();
+              }
+            }
           }
         }
       }
     }
   }
-  for (auto u : visited_list) {
-    visited[u] = false;
+  for (auto w : visited_list) {
+    visited[tid][w] = false;
   }
   while (!Q2.empty()) {
     ann.push_back(Q2.top().first);
@@ -99,7 +105,18 @@ vector<uint32_t> prune(int now, vector<uint32_t>& ann) {
   return neighbours;
 }
 
+int get_num_threads(void) {
+    int num_threads = 1;
+    #pragma omp parallel
+    {
+        #pragma omp single
+        num_threads = omp_get_num_threads();
+    }
+    return num_threads;
+}
+
 int main(int argc, char **argv) {
+  srand(time(0));
   string source_path = "dummy-data.bin";
   string query_path = "dummy-queries.bin";
   string knn_save_path = "output.bin";
@@ -125,6 +142,7 @@ int main(int argc, char **argv) {
   uint32_t n = nodes.size();
   uint32_t d = nodes[0].size();
   uint32_t nq = queries.size();
+  uint32_t sn = 10;
 
   cout<<"# data points:  " << n<<"\n";
   cout<<"# data point dim:  " << d<<"\n";
@@ -135,9 +153,16 @@ int main(int argc, char **argv) {
   int mismatched_nums = 0;
 
   edges.resize(nodes.size());
-  visited.resize(nodes.size());
+  knn_results.resize(nq);
+  for (int i = 0; i < get_num_threads(); i++) {
+    visited.push_back(vector<bool>());
+    visited[i].resize(nodes.size());
+  }
+  cout << "Number of threads: " << get_num_threads() << endl;
+
   cout << "Constructing the index..." << endl;
-  for (int i = 0; i < std::min(400000, int(nodes.size())); i++) {
+  for (int i = 0; i < std::min(1000000, int(nodes.size())); i++) {
+    // cout << i << endl;
     if ((i + 1) % 100000 == 0) {
       cout << (i + 1) << endl;
     }
@@ -155,9 +180,6 @@ int main(int argc, char **argv) {
   cout << "Solving queries..." << endl;
   #pragma omp parallel for
   for(int i = 0; i < nq; i++){
-    if ((i + 1) % 10000 == 0) {
-      std::cout << i + 1 << std::endl;
-    }
     uint32_t query_type = queries[i][0];
     int32_t v = queries[i][1];
     float l = queries[i][2];
@@ -170,9 +192,10 @@ int main(int argc, char **argv) {
     for(int j = 4; j < queries[i].size(); j++)
       query_vec.push_back(queries[i][j]);
 
-    vector<uint32_t> knn; // candidate knn
-    ann_search(query_vec, 1, K, knn);
-    knn_results.push_back(knn);
+    ann_search(query_vec, 1, K, knn_results[i], v, l, r);
+    // while (knn_results[i].size() < K) {
+    //   knn_results[i].push_back(rand() % n);
+    // }
   }
 
   std::cout << "Mismatched nums: " << mismatched_nums << std::endl;
