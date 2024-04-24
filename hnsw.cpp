@@ -234,7 +234,7 @@ int main(int argc, char **argv) {
     }
     
     for (int j = li; j < ri; j++) {
-      ann_search(query_vec, ep, 2 * K / (ri - li), knn_results[i], v, l, r, 30 * K / (ri - li));
+      ann_search(query_vec, j * block_size, 2 * K / (ri - li), knn_results[i], v, l, r, 30 * K / (ri - li));
     }
   }
 
