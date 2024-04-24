@@ -21,14 +21,22 @@ using std::vector;
 vector<vector<float>> nodes;
 vector<vector<uint32_t>> edges;
 
-const int M = 20;
+const int M = 30;
 vector<vector<bool>> visited;
+
+bool cmp_label(const std::vector<float>& i, const std::vector<float>& j) {
+  return i[0] < j[0];
+}
+
+bool cmp_time(const std::vector<float>& i, const std::vector<float>& j) {
+  return i[1] < j[1];
+}
 
 float compare_with_id(const std::vector<float>& a, const std::vector<float>& b) {
   float sum = 0.0;
   // Skip the first 2 dimensions
   // #pragma omp parallel for reduction (+:sum)
-  for (size_t i = 2; i < a.size(); ++i) {
+  for (size_t i = 2; i < a.size() - 1; ++i) {
     float diff = a[i] - b[i];
     sum += diff * diff;
   }
@@ -144,11 +152,9 @@ int main(int argc, char **argv) {
   uint32_t n = nodes.size();
   uint32_t d = nodes[0].size();
   uint32_t nq = queries.size();
-  uint32_t sn = 10;
   uint32_t block_num = 20;
   uint32_t block_size = n / block_num;
   uint32_t block_k = 10;
-  uint32_t limit = 150;
 
   cout<<"# data points:  " << n<<"\n";
   cout<<"# data point dim:  " << d<<"\n";
@@ -156,7 +162,6 @@ int main(int argc, char **argv) {
   cout<<"# blocks:    " << block_num<<"\n";
   cout<<"Block size:    " << block_size<<"\n";
   cout<<"Block K:    " << block_k<<"\n";
-  cout<<"Early stop limit:    " << limit<<"\n";
 
   /** A basic method to compute the KNN results using sampling  **/
   const int K = 100;    // To find 100-NN
@@ -169,6 +174,15 @@ int main(int argc, char **argv) {
     visited[i].resize(nodes.size());
   }
   cout << "Number of threads: " << get_num_threads() << endl;
+
+  cout << "Proprocessing..." << endl;
+  for (int i = 0; i < n; i++) {
+    nodes[i].push_back(i);
+  }
+  std::sort(nodes.begin(), nodes.end(), cmp_time);
+  // for (int i = 0; i < block_num; i++) {
+  //   std::sort(nodes.begin() + i * block_size, nodes.begin() + (i + 1) * block_size, cmp_label);
+  // }
 
   cout << "Constructing the index..." << endl;
   #pragma omp parallel for
@@ -206,8 +220,21 @@ int main(int argc, char **argv) {
     for(int j = 4; j < queries[i].size(); j++)
       query_vec.push_back(queries[i][j]);
 
-    for (int j = 0; j < block_num; j++) {
-      ann_search(query_vec, j * block_size, block_k, knn_results[i], v, l, r, limit);
+    int li = 0, ri = block_num;
+    if (query_type == 2 || query_type == 3) {
+      for (int j = 0; j < block_num; j++) {
+        if (nodes[j * block_size][1] <= l) {
+          li = j;
+        }
+        if (nodes[j * block_size][1] > r) {
+          ri = j;
+          break;
+        }
+      }
+    }
+    
+    for (int j = li; j < ri; j++) {
+      ann_search(query_vec, ep, 2 * K / (ri - li), knn_results[i], v, l, r, 30 * K / (ri - li));
     }
   }
 
@@ -246,7 +273,8 @@ int main(int argc, char **argv) {
     vector<uint32_t> knn_sorted;
     knn_sorted.resize(K);
     for(uint32_t j = 0; j < K; j++){
-      knn_sorted[j] = knn_results[i][ids[j]];
+      uint32_t id = knn_results[i][ids[j]];
+      knn_sorted[j] = nodes[id][nodes[id].size() - 1];
     }
     knn_results[i] = knn_sorted;
   }
