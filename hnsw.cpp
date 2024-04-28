@@ -92,11 +92,12 @@ void ann_search(vector<float>& q, int s, int k, vector<uint32_t>& ann, int32_t v
     ann.push_back(Q2.top().first);
     Q2.pop();
   }
+  std::reverse(ann.begin(), ann.end());
 }
 
 vector<uint32_t> prune(int now, vector<uint32_t>& ann) {
   vector<uint32_t> neighbours;
-  for (int i = ann.size() - 1; i >= 0; i--) {
+  for (int i = 0; i < ann.size(); i++) {
     int v = ann[i];
     bool not_dominated = true;
     for (int u : neighbours) {
